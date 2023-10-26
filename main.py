@@ -24,25 +24,66 @@ def find_pivots(df, leftLenH, rightLenH, leftLenL, rightLenL):
 
     return df
 
-# def pattern(df):
-#     df = find_pivots(df, 5, 5, 5, 5)
+def pattern(df):
+    df = find_pivots(df, 5, 5, 5, 5)
+    df['pattern_bull'] = False
+    df['pattern_bear'] = False
     
-#     # Identify the Zigzag pattern
-#     df['Pattern'] = False
-#     for i in range(3, len(df)):
-#         if (not np.isnan(df['pl'][i-3])) and (not np.isnan(df['ph'][i-2])) and (not np.isnan(df['pl'][i-1])) and (not np.isnan(df['ph'][i])):
-#             if (df['pl'][i-3] < df['pl'][i-1]) and (df['ph'][i-2] < df['ph'][i]):
-#                 df.at[i, 'Pattern'] = True
+    pattern_list = []
+    bull_flag = False
+    bear_flag = False
+    pl_values = []  # List to store pivot lows
+    ph_values = []  # List to store pivot highs
 
-#     return df
+    for i in range(len(df)):
+        # Check if current is a pivot low (pl)
+        if not np.isnan(df['pl'][i]):
+            pattern_list.append('pl')
+            pl_values.append(df['pl'][i])
+            bull_flag = False
+            bear_flag = False
+        
+        # Check if current is a pivot high (ph)
+        elif not np.isnan(df['ph'][i]):
+            pattern_list.append('ph')
+            ph_values.append(df['ph'][i])
+            bull_flag = False
+            bear_flag = False
+            
+        # Check for pattern pl-ph-pl-ph or ph-pl-ph-pl
+        if len(pattern_list) >= 4 and len(pl_values) >= 2 and len(ph_values) >= 2:
+            last_four = pattern_list[-4:]
+            if last_four == ['pl', 'ph', 'pl', 'ph']:
+                if pl_values[-2] < pl_values[-1] and ph_values[-2] < ph_values[-1]:
+                    bull_flag = True
+                # Remove the first elements in pattern_list, pl_values, ph_values
+                pattern_list.pop(0)
+                pl_values.pop(0)
+                ph_values.pop(0)
+
+            elif last_four == ['ph', 'pl', 'ph', 'pl']:
+                if ph_values[-2] > ph_values[-1] and pl_values[-2] > pl_values[-1]:
+                    bear_flag = True
+                # Remove the first elements in pattern_list, pl_values, ph_values
+                pattern_list.pop(0)
+                pl_values.pop(0)
+                ph_values.pop(0)
+        
+        if bull_flag:
+            df.at[i, 'pattern_bull'] = True
+
+        if bear_flag:
+            df.at[i, 'pattern_bear'] = True
+
+    return df
 
 def main():
     symbol = 'BTC/USDT'
     timeframe = '15m'
-    limit = 100 
+    limit = 500 
     df = fetch_data(symbol, timeframe, limit)
-    # df_with_patterns = pattern(df)
-    # df_with_patterns.to_csv("df_test.csv")
+    df_pivots = pattern(df)
+    df_pivots.to_csv("df_pivots.csv")
 
 if __name__ == "__main__":
     main()
