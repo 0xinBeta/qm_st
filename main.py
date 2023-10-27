@@ -14,13 +14,16 @@ def find_pivots(df, leftLenH, rightLenH, leftLenL, rightLenL):
     df['pl'] = np.nan
 
     for i in range(leftLenH, len(df) - rightLenH):
-        # Pivot High
-        if df['High'][i] == max(df['High'][i - leftLenH:i + rightLenH + 1]):
-            df.at[i + rightLenH, 'ph'] = df['High'][i]
+
+        if df['High'].iloc[i] == max(df['High'].iloc[i - leftLenH:i + rightLenH + 1]):
+            target_index = i + rightLenH - 5  # Shift 5 candles backward
+            if target_index >= 0:  # Check to avoid negative index
+                df.at[target_index, 'ph'] = df['High'].iloc[i]
         
-        # Pivot Low
-        if df['Low'][i] == min(df['Low'][i - leftLenL:i + rightLenL + 1]):
-            df.at[i + rightLenL, 'pl'] = df['Low'][i]
+        if df['Low'].iloc[i] == min(df['Low'].iloc[i - leftLenL:i + rightLenL + 1]):
+            target_index = i + rightLenL - 5  # Shift 5 candles backward
+            if target_index >= 0:  # Check to avoid negative index
+                df.at[target_index, 'pl'] = df['Low'].iloc[i]
 
     return df
 
@@ -28,54 +31,79 @@ def pattern(df):
     df = find_pivots(df, 5, 5, 5, 5)
     df['pattern_bull'] = False
     df['pattern_bear'] = False
-    
+    df['CHoCH'] = False  # Initialize the new column
+    df['4th_pivot_index'] = None
+    df['OHCL'] = None
+
     pattern_list = []
     bull_flag = False
     bear_flag = False
+    prev_pl = None  # Store the previous pivot low
+    prev_ph = None  # Store the previous pivot high
     pl_values = []  # List to store pivot lows
     ph_values = []  # List to store pivot highs
+    pivots_indices = []
 
     for i in range(len(df)):
-        # Check if current is a pivot low (pl)
-        if not np.isnan(df['pl'][i]):
+        if not np.isnan(df['pl'].iloc[i]):
             pattern_list.append('pl')
-            pl_values.append(df['pl'][i])
-            bull_flag = False
-            bear_flag = False
-        
-        # Check if current is a pivot high (ph)
-        elif not np.isnan(df['ph'][i]):
-            pattern_list.append('ph')
-            ph_values.append(df['ph'][i])
-            bull_flag = False
-            bear_flag = False
+            pivots_indices.append(i)
+            pl_values.append(df['pl'].iloc[i])
+
+            if bull_flag:
+                if prev_pl is not None and df['pl'].iloc[i] < prev_pl:
+                    df.at[i, 'CHoCH'] = True
             
-        # Check for pattern pl-ph-pl-ph or ph-pl-ph-pl
+            prev_pl = df['pl'].iloc[i]
+            bull_flag = False
+            bear_flag = False
+
+        elif not np.isnan(df['ph'].iloc[i]):
+            pattern_list.append('ph')
+            pivots_indices.append(i)
+            ph_values.append(df['ph'].iloc[i])
+            if bear_flag:
+                if prev_ph is not None and df['ph'].iloc[i] > prev_ph:
+                    df.at[i, 'CHoCH'] = True
+            
+            prev_ph = df['ph'].iloc[i]
+            bull_flag = False
+            bear_flag = False
+
         if len(pattern_list) >= 4 and len(pl_values) >= 2 and len(ph_values) >= 2:
             last_four = pattern_list[-4:]
             if last_four == ['pl', 'ph', 'pl', 'ph']:
                 if pl_values[-2] < pl_values[-1] and ph_values[-2] < ph_values[-1]:
                     bull_flag = True
-                # Remove the first elements in pattern_list, pl_values, ph_values
-                pattern_list.pop(0)
-                pl_values.pop(0)
-                ph_values.pop(0)
+                # pattern_list.pop(0)
+                # pl_values.pop(0)
+                # ph_values.pop(0)
 
             elif last_four == ['ph', 'pl', 'ph', 'pl']:
                 if ph_values[-2] > ph_values[-1] and pl_values[-2] > pl_values[-1]:
                     bear_flag = True
-                # Remove the first elements in pattern_list, pl_values, ph_values
-                pattern_list.pop(0)
-                pl_values.pop(0)
-                ph_values.pop(0)
-        
+                # pattern_list.pop(0)
+                # pl_values.pop(0)
+                # ph_values.pop(0)
+
+            if df['CHoCH'].iloc[i]:
+                if len(pivots_indices) >= 5:
+                    fourth_pivot_index = pivots_indices[-4]
+                    base_candle = df.iloc[fourth_pivot_index]
+                    df.at[i, 'OHCL'] = str(base_candle[['Open', 'High', 'Low', 'Close']].to_dict())
+
         if bull_flag:
             df.at[i, 'pattern_bull'] = True
 
         if bear_flag:
             df.at[i, 'pattern_bear'] = True
 
+
+    # print(pattern_list)
+    # print(ph_values)
+    # print(pl_values)
     return df
+
 
 def main():
     symbol = 'BTC/USDT'
