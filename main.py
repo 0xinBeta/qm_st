@@ -2,12 +2,15 @@ import ccxt
 import pandas as pd
 import numpy as np
 
+
 def fetch_data(symbol, timeframe, limit):
     binance = ccxt.binanceusdm()
     ohlcv = binance.fetch_ohlcv(symbol, timeframe, limit=limit)
-    df = pd.DataFrame(ohlcv, columns=['timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
+    df = pd.DataFrame(
+        ohlcv, columns=['timestamp', 'Open', 'High', 'Low', 'Close', 'Volume'])
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     return df
+
 
 def find_pivots(df, leftLenH, rightLenH, leftLenL, rightLenL):
     df['ph'] = np.nan
@@ -19,7 +22,7 @@ def find_pivots(df, leftLenH, rightLenH, leftLenL, rightLenL):
             target_index = i + rightLenH - 5  # Shift 5 candles backward
             if target_index >= 0:  # Check to avoid negative index
                 df.at[target_index, 'ph'] = df['High'].iloc[i]
-        
+
         if df['Low'].iloc[i] == min(df['Low'].iloc[i - leftLenL:i + rightLenL + 1]):
             target_index = i + rightLenL - 5  # Shift 5 candles backward
             if target_index >= 0:  # Check to avoid negative index
@@ -27,12 +30,12 @@ def find_pivots(df, leftLenH, rightLenH, leftLenL, rightLenL):
 
     return df
 
+
 def pattern(df):
     df = find_pivots(df, 5, 5, 5, 5)
     df['pattern_bull'] = False
     df['pattern_bear'] = False
     df['CHoCH'] = False  # Initialize the new column
-    df['4th_pivot_index'] = None
     df['OHCL'] = None
 
     pattern_list = []
@@ -53,7 +56,7 @@ def pattern(df):
             if bull_flag:
                 if prev_pl is not None and df['pl'].iloc[i] < prev_pl:
                     df.at[i, 'CHoCH'] = True
-            
+
             prev_pl = df['pl'].iloc[i]
             bull_flag = False
             bear_flag = False
@@ -65,7 +68,7 @@ def pattern(df):
             if bear_flag:
                 if prev_ph is not None and df['ph'].iloc[i] > prev_ph:
                     df.at[i, 'CHoCH'] = True
-            
+
             prev_ph = df['ph'].iloc[i]
             bull_flag = False
             bear_flag = False
@@ -75,22 +78,16 @@ def pattern(df):
             if last_four == ['pl', 'ph', 'pl', 'ph']:
                 if pl_values[-2] < pl_values[-1] and ph_values[-2] < ph_values[-1]:
                     bull_flag = True
-                # pattern_list.pop(0)
-                # pl_values.pop(0)
-                # ph_values.pop(0)
 
             elif last_four == ['ph', 'pl', 'ph', 'pl']:
                 if ph_values[-2] > ph_values[-1] and pl_values[-2] > pl_values[-1]:
                     bear_flag = True
-                # pattern_list.pop(0)
-                # pl_values.pop(0)
-                # ph_values.pop(0)
 
             if df['CHoCH'].iloc[i]:
                 if len(pivots_indices) >= 5:
                     fourth_pivot_index = pivots_indices[-4]
                     base_candle = df.iloc[fourth_pivot_index]
-                    df.at[i, 'OHCL'] = str(base_candle[['Open', 'High', 'Low', 'Close']].to_dict())
+                    df.at[i, 'OHCL'] = base_candle[['Open', 'High', 'Low', 'Close']].to_dict()
 
         if bull_flag:
             df.at[i, 'pattern_bull'] = True
@@ -98,20 +95,17 @@ def pattern(df):
         if bear_flag:
             df.at[i, 'pattern_bear'] = True
 
-
-    # print(pattern_list)
-    # print(ph_values)
-    # print(pl_values)
     return df
 
 
 def main():
     symbol = 'BTC/USDT'
     timeframe = '15m'
-    limit = 500 
+    limit = 500
     df = fetch_data(symbol, timeframe, limit)
     df_pivots = pattern(df)
     df_pivots.to_csv("df_pivots.csv")
+
 
 if __name__ == "__main__":
     main()
