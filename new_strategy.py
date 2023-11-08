@@ -11,16 +11,19 @@ from ta.trend import adx
 
 mp.set_start_method('fork')
 
+['ETH', 'BTC', 'BNB', 'XRP', 'LINK']
 
 def create_df():
     df = vbt.CCXTData.download(
-        symbols="BTCUSDT",
+        symbols="BTC/USDT",
         missing_index="drop",
-        exchange="binanceusdm",
-        timeframe= "30m",
-        start="180 day ago UTC",
+        exchange="bybit",
+        timeframe= "15m",
+        start="2 day ago UTC",
         end="now"
     ).get()
+
+
 
     df['EMA9'] = TA.EMA(df, 9, 'close')
     df['EMA21'] = TA.EMA(df, 21, 'close')
@@ -59,8 +62,8 @@ df = create_df()
 # df.to_csv("back_test.csv")
 
 class qm_strat(Strategy):
-    tp_m = 5
-    sl_m = 5
+    tp_m = 7
+    sl_m = 4
 
     def init(self):
         pass
@@ -75,12 +78,27 @@ class qm_strat(Strategy):
         tp_short = price - atr * self.tp_m
         sl_short = price + atr * self.tp_m
 
+        distance_long = price - sl_long
+        distance_short = sl_short - price
+
+        cash = 100_000
+        
+        risk_long = (cash * 0.05) / distance_long
+        risk_short = (cash * 0.05) / distance_short
+
+        pos_size_long = ((risk_long * price) / 125) / cash
+        pos_size_short = ((risk_short * price) / 125) / cash
+        
+
+
         if buy_signal:
-            # if not self.position:
-            self.buy(size=0.1,sl=sl_long, tp=tp_long)
+            if not self.position:
+                print(pos_size_long)
+                self.buy(size=pos_size_long,sl=sl_long, tp=tp_long)
         elif sell_signal:
-            # if not self.position:
-            self.sell(size=0.1,sl=sl_short, tp=tp_short)
+            if not self.position:
+                print(pos_size_short)
+                self.sell(size=pos_size_short,sl=sl_short, tp=tp_short)
 
         
         # Check if we need to close the position
@@ -92,22 +110,22 @@ class qm_strat(Strategy):
 
 
 # # # Initialize backtest with $100,000 cash
-bt = Backtest(df, qm_strat, cash=100_000, margin=0.05)
+bt = Backtest(df, qm_strat, cash=100_000, margin=0.008)
 
 
 # # # Run the backtest and generate the performance report
-# stats = bt.run()
-stats = bt.optimize(
-    tp_m = 7,
-    # tp_m = range(5,11,1),
-    # e_2_m = 2,
-    sl_m = 4,
-    # sl_m = range(1, 5, 1),
-    # tp_p_m = range(2, 20, 1),
-    # sl_p_m = 20,
-    maximize='Win Rate [%]' and 'Return (Ann.) [%]',
-    method='grid'
-    )
+stats = bt.run()
+# stats = bt.optimize(
+#     tp_m = 7,
+#     # tp_m = range(5,11,1),
+#     # e_2_m = 2,
+#     sl_m = 4,
+#     # sl_m = range(1, 5, 1),
+#     # tp_p_m = range(2, 20, 1),
+#     # sl_p_m = 20,
+#     maximize='Win Rate [%]' and 'Return (Ann.) [%]',
+#     method='grid'
+#     )
 # Plot the backtest results
 bt.plot()
 
